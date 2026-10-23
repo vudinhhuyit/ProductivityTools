@@ -2,9 +2,9 @@
 
 Các công cụ nhỏ hỗ trợ làm việc với Jira.
 
-## Jira Month Tasks (Chrome Extension)
+## Jira shit (Chrome Extension)
 
-Thư mục: [`ChromeExtensions/jira-month-tasks`](ChromeExtensions/jira-month-tasks)
+Thư mục: [`ChromeExtensions/jira-shit`](ChromeExtensions/jira-shit)
 
 Extension Chrome (Manifest V3) giúp tổng hợp task Jira trong tháng và log work hàng loạt, không cần API token.
 
@@ -20,7 +20,7 @@ Extension Chrome (Manifest V3) giúp tổng hợp task Jira trong tháng và log
 
 ### Cài đặt
 1. Mở `chrome://extensions` → bật **Developer mode**.
-2. Bấm **Load unpacked** → chọn thư mục `ChromeExtensions/jira-month-tasks`.
+2. Bấm **Load unpacked** → chọn thư mục `ChromeExtensions/jira-shit`.
 3. Đăng nhập Jira trên Chrome, bấm icon extension và dán link Jira.
 
 ### Cách hoạt động
@@ -38,4 +38,4 @@ Extension Chrome (Manifest V3) giúp tổng hợp task Jira trong tháng và log
 | `parse.js` | Đọc số giờ, thời điểm bắt đầu từ Excel; chia giờ cho Logwork 8h |
 | `xlsx.mini.min.js` | Thư viện SheetJS |
 
-Hướng dẫn chi tiết (định dạng cột Logwork / Thời gian, quy tắc chia giờ…): xem [README của extension](ChromeExtensions/jira-month-tasks/README.md).
+Hướng dẫn chi tiết (định dạng cột Logwork / Thời gian, quy tắc chia giờ…): xem [README của extension](ChromeExtensions/jira-shit/README.md).

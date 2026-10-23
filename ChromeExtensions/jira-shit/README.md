@@ -1,11 +1,11 @@
-# Jira Tasks (Chrome Extension)
+# Jira shit (Chrome Extension)
 
 Dán link Jira → liệt kê task **Đã xong** và **Đang làm** trong khoảng ngày (mặc định từ ngày 01 tháng này đến hôm nay) → xuất Excel → điền giờ → **Logwork** ngược lên Jira.
 
 ## Cài đặt
-1. Giải nén thư mục `jira-month-tasks`.
+1. Giải nén thư mục `jira-shit`.
 2. Mở `chrome://extensions` → bật **Developer mode**.
-3. Bấm **Load unpacked** → chọn thư mục `jira-month-tasks`.
+3. Bấm **Load unpacked** → chọn thư mục `jira-shit`.
    (Nếu đã cài bản cũ: bấm nút ⟳ reload của extension.)
 
 ## Xem & xuất task
