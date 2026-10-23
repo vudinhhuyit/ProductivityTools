@@ -1,0 +1,165 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<title>Jira Tasks</title>
+<style>
+  :root { --bg:#fff; --fg:#172b4d; --mut:#6b778c; --line:#dfe1e6; --blue:#0c66e4; --green:#1f845a; --amber:#b65c02; --red:#c9372c; --soft:#f7f8f9; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#1d2125; --fg:#dee4ea; --mut:#9fadbc; --line:#38414a; --blue:#579dff; --green:#4bce97; --amber:#f5cd47; --red:#f87168; --soft:#22272b; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; width:700px; font:13px/1.4 -apple-system,Segoe UI,Roboto,sans-serif; background:var(--bg); color:var(--fg); }
+  html.tab body { width:auto; max-width:1000px; margin:0 auto; }
+  html.tab .wrap { max-height:none; }
+  header { padding:12px 14px 8px; border-bottom:1px solid var(--line); }
+  h1 { font-size:15px; margin:0 0 8px; }
+  .row { display:flex; gap:6px; align-items:center; }
+  input[type=date] { padding:6px 8px; border:1px solid var(--line); border-radius:6px; background:transparent; color:var(--fg); font:inherit; color-scheme:light dark; }
+  input[type=text] { flex:1; padding:7px 9px; border:1px solid var(--line); border-radius:6px; background:transparent; color:var(--fg); }
+  button { padding:7px 12px; border:0; border-radius:6px; background:var(--blue); color:#fff; cursor:pointer; font-weight:600; }
+  button.ghost { background:transparent; color:var(--fg); border:1px solid var(--line); font-weight:500; }
+  button:disabled { opacity:.5; cursor:default; }
+  .opts { margin-top:8px; display:flex; gap:14px; flex-wrap:wrap; color:var(--mut); }
+  .opts label { display:flex; gap:4px; align-items:center; cursor:pointer; }
+  select { padding:3px 6px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--fg); font:inherit; }
+  details { margin-top:6px; color:var(--mut); }
+  .today { margin-top:10px; padding-top:8px; border-top:1px dashed var(--line); }
+  .today b { display:block; margin-bottom:4px; }
+  #todayHint { margin-top:4px; min-height:1em; }
+  textarea { width:100%; margin-top:4px; min-height:54px; font:12px monospace; border:1px solid var(--line); border-radius:6px; background:transparent; color:var(--fg); padding:6px; }
+  .bar { display:flex; justify-content:space-between; align-items:center; padding:8px 14px; gap:8px; flex-wrap:wrap; }
+  .bar .actions { display:flex; gap:4px; }
+  .chips button { margin-right:4px; padding:4px 10px; }
+  .chips button.on { background:var(--blue); color:#fff; border-color:var(--blue); }
+  #msg { padding:6px 14px; color:var(--mut); }
+  #msg.err { color:var(--red); }
+  .wrap { max-height:380px; overflow:auto; padding:0 14px 14px; }
+  table { width:100%; border-collapse:collapse; }
+  th, td { text-align:left; padding:6px 6px; border-bottom:1px solid var(--line); vertical-align:top; }
+  th { position:sticky; top:0; background:var(--bg); color:var(--mut); font-weight:600; user-select:none; }
+  th[data-s] { cursor:pointer; }
+  td.key a { color:var(--blue); text-decoration:none; white-space:nowrap; font-weight:600; }
+  td.nowrap { white-space:nowrap; }
+  .st { display:inline-block; padding:1px 7px; border-radius:4px; font-size:11px; font-weight:700; text-transform:uppercase; white-space:nowrap; }
+  .type { font-size:12px; color:var(--mut); }
+  .type.bug { color:var(--red); font-weight:700; }
+  .st.done { color:var(--green); background:color-mix(in srgb, var(--green) 14%, transparent); }
+  .st.new { color:var(--mut); background:color-mix(in srgb, var(--mut) 14%, transparent); }
+  .st.indeterminate { color:var(--amber); background:color-mix(in srgb, var(--amber) 14%, transparent); }
+
+  #lwHelp { margin:0 14px 10px; padding:8px 12px; border:1px solid var(--line); border-radius:8px; background:var(--soft); }
+  #lwHelp p { margin:0 0 4px; }
+  #lwHelp ul { margin:0; padding-left:18px; }
+  #lwHelp li { margin:2px 0; }
+  #lwHelp code { padding:0 4px; border-radius:3px; background:color-mix(in srgb, var(--blue) 12%, transparent); font-size:12px; }
+  #lw { margin:0 14px 10px; border:1px solid var(--line); border-radius:8px; background:var(--soft); }
+  #lw .head { display:flex; justify-content:space-between; align-items:center; padding:8px 10px; gap:8px; }
+  #lw .head span { display:flex; gap:4px; }
+  #lwNote { padding:0 10px 6px; color:var(--mut); }
+  #lw .wrap { padding:0 10px 10px; max-height:260px; }
+  #lw th { background:var(--soft); }
+  .ok { color:var(--green); font-weight:600; }
+  .bad { color:var(--red); }
+  .muted { color:var(--mut); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Jira Tasks</h1>
+  <div class="row">
+    <input id="url" type="text" placeholder="Dán link Jira, vd: https://congty.atlassian.net/browse/ABC-123">
+    <button id="load">Tải</button>
+  </div>
+  <div class="opts">
+    <label>Task:
+      <select id="scope">
+        <option value="mine">Đang giao cho tôi</option>
+        <option value="was">Từng giao cho tôi (gồm cả hiện tại)</option>
+        <option value="logged">Worklogged (tôi đã log work trong khoảng ngày)</option>
+        <option value="all">Của tất cả mọi người</option>
+      </select>
+    </label>
+    <label>Từ <input id="rangeFrom" type="date"></label>
+    <label>đến <input id="rangeTo" type="date"></label>
+    <label id="projWrap" hidden><input id="useProj" type="checkbox" checked> Chỉ dự án <b id="projKey"></b></label>
+  </div>
+  <div class="today">
+    <b>Logwork (8h)</b>
+    <div class="row">
+      <input id="logDate" type="date" title="Ngày log work">
+      <input id="todayKeys" type="text" placeholder="Dán mã task, cách nhau bởi dấu phẩy: ABC-1, ABC-2, ABC-3">
+      <button id="todayGo">Log work</button>
+    </div>
+    <div id="todayHint" class="muted"></div>
+  </div>
+  <details>
+    <summary>JQL (có thể sửa)</summary>
+    <textarea id="jql"></textarea>
+  </details>
+</header>
+
+<div class="bar">
+  <div class="chips">
+    <button class="ghost on" data-f="all">Tất cả <span id="cAll">0</span></button>
+    <button class="ghost" data-f="done">Đã xong <span id="cDone">0</span></button>
+    <button class="ghost" data-f="indeterminate">Đang làm <span id="cProg">0</span></button>
+  </div>
+  <div class="actions">
+    <button class="ghost" id="copy" disabled>Copy</button>
+    <button class="ghost" id="xlsx" disabled>Xuất Excel</button>
+    <button id="logwork">Nhập file Log work</button>
+    <input id="file" type="file" accept=".xlsx,.csv" hidden>
+  </div>
+</div>
+
+<div id="msg"></div>
+
+<section id="lwHelp" hidden>
+  <p>Bấm <b>Nhập file Log work</b> để chọn file Excel đã điền cột <b>Logwork</b> và <b>Thời gian</b>.</p>
+  <ul>
+    <li><b>Logwork</b> là số giờ cần log, ví dụ <code>2h</code>, <code>2,5h</code>, <code>30m</code>, <code>1h30m</code>. Không ghi <code>h</code> hay <code>m</code> thì tính là giờ: <code>3</code> nghĩa là 3h.</li>
+    <li><b>Thời gian</b> là thời điểm bắt đầu, dạng <code>hh:mm dd/MM/yyyy</code>, ví dụ <code>08:00 09/10/2026</code>.
+      <ul>
+        <li>Thiếu năm (<code>14:00 9/10</code>) thì lấy năm hiện tại.</li>
+        <li>Thiếu tháng thì lấy tháng hiện tại.</li>
+        <li>Thiếu phút thì lấy 00. Ví dụ <code>9 9</code> nghĩa là 09:00 ngày 9 tháng này.</li>
+        <li>Thiếu giờ thì lấy 08:00. Ví dụ chỉ ghi <code>9</code> nghĩa là 08:00 ngày 9 tháng này.</li>
+      </ul>
+    </li>
+    <li>Chỉ log những dòng có đủ cả hai cột. Dòng thiếu một cột hoặc ghi sai định dạng sẽ được báo lỗi và bỏ qua.</li>
+    <li>Trước khi log, extension hiện bảng xem trước để bạn kiểm tra rồi bấm <b>Xác nhận log</b>.</li>
+    <li>Worklog đã có (cùng mã, cùng thời điểm, cùng số giờ) sẽ tự bỏ qua, nên nhập lại cùng một file cũng không bị log đôi.</li>
+  </ul>
+</section>
+
+<section id="lw" hidden>
+  <div class="head">
+    <b id="lwTitle"></b>
+    <span>
+      <button class="ghost" id="lwClose">Đóng</button>
+      <button id="lwGo">Xác nhận log</button>
+    </span>
+  </div>
+  <div id="lwNote"></div>
+  <div class="wrap">
+    <table>
+      <thead><tr><th>Dòng</th><th>Mã</th><th>Logwork</th><th>Bắt đầu</th><th>Kết quả</th></tr></thead>
+      <tbody id="lwBody"></tbody>
+    </table>
+  </div>
+</section>
+
+<div class="wrap">
+  <table>
+    <thead><tr>
+      <th data-s="key">Mã</th><th data-s="type">Loại</th><th data-s="summary">Tiêu đề</th><th data-s="date">Ngày</th><th data-s="status">Trạng thái</th><th data-s="assignee">Assignee</th><th data-s="spent">Worklogged</th>
+    </tr></thead>
+    <tbody id="tbody"></tbody>
+  </table>
+</div>
+<script src="xlsx.mini.min.js"></script>
+<script src="parse.js"></script>
+<script src="popup.js"></script>
+</body>
+</html>
