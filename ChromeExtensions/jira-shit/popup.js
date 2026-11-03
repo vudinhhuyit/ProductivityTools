@@ -2,7 +2,7 @@ const $ = (id) => document.getElementById(id);
 const IS_TAB = new URLSearchParams(location.search).has('tab');
 document.documentElement.classList.toggle('tab', IS_TAB);
 
-let state = { origin: '', issues: [], filter: 'all', sort: { by: 'date', dir: -1 }, jqlEdited: false, pending: [] };
+let state = { origin: '', issues: [], filter: 'all', sort: { by: 'date', dir: -1 }, jqlEdited: false, pending: [], sel: new Set(), statusF: '' };
 
 // ---------- Phân tích link ----------
 function parseUrl(raw) {
@@ -67,7 +67,7 @@ function refreshOptions() {
 
 // ---------- Chạy BÊN TRONG tab Jira (dùng cookie đăng nhập của bạn) ----------
 async function fetchInJira(base, jql) {
-  const fields = 'summary,status,updated,resolutiondate,timespent,assignee,issuetype';
+  const fields = 'summary,status,updated,resolutiondate,timespent,assignee,issuetype,reporter';
   const out = [];
   const get = (path) => fetch(base + path, { headers: { Accept: 'application/json' }, credentials: 'include' });
   const fail = async (r) => {
@@ -120,6 +120,7 @@ async function fetchInJira(base, jql) {
         date: (cat === 'done' && f.resolutiondate) ? f.resolutiondate : f.updated,
         spent: f.timespent || 0,
         assignee: (f.assignee && f.assignee.displayName) || 'Chưa giao',
+        reporter: f.reporter ? { accountId: f.reporter.accountId, name: f.reporter.name, displayName: f.reporter.displayName } : null,
         type: (f.issuetype && f.issuetype.name) || '',
       };
     }),
@@ -189,21 +190,69 @@ function waitComplete(tabId) {
   });
 }
 
-async function getJiraTab(p, rawUrl) {
-  const tabs = await chrome.tabs.query({ url: p.origin + '/*' });
-  if (tabs.length) return tabs[0].id;
-  const tab = await chrome.tabs.create({ url: rawUrl, active: false });
-  await waitComplete(tab.id);
-  return tab.id;
+// Chờ tab tải xong SAU một thao tác (reload/điều hướng). Gắn listener trước khi chạy thao tác
+// để không lỡ sự kiện, và bỏ qua trạng thái "complete" cũ của trang trước đó.
+function navigateAndWait(tabId, action) {
+  return new Promise((resolve) => {
+    let started = false;
+    const done = () => { chrome.tabs.onUpdated.removeListener(l); clearTimeout(t); resolve(); };
+    const l = (id, info) => {
+      if (id !== tabId) return;
+      if (info.status === 'loading') started = true;
+      else if (info.status === 'complete' && started) done();
+    };
+    const t = setTimeout(done, 20000);
+    chrome.tabs.onUpdated.addListener(l);
+    Promise.resolve(action()).catch(done);
+  });
+}
+
+// Tab đang hiện trang lỗi (mất mạng/VPN, hết phiên, tab bị Chrome "ngủ"...) thì không chạy script được.
+const isTabUnusable = (e) =>
+  /error page|cannot access|no tab with id|no frame with id|frame with id|tab was discarded/i.test(String(e && e.message || e));
+
+async function execIn(tabId, func, args) {
+  const [res] = await chrome.scripting.executeScript({ target: { tabId }, world: 'MAIN', func, args });
+  return res && res.result;
 }
 
 async function runInJira(func, args) {
   const raw = $('url').value.trim();
   const p = parseUrl(raw);
   if (!p) throw new Error('Hãy dán link Jira hợp lệ trước.');
-  const tabId = await getJiraTab(p, raw);
-  const [res] = await chrome.scripting.executeScript({ target: { tabId }, world: 'MAIN', func, args: [p.base, ...args] });
-  const r = res && res.result;
+  const fullArgs = [p.base, ...args];
+
+  // 1) Thử lần lượt các tab Jira đang mở, bỏ qua tab đang lỗi/đang ngủ.
+  const tabs = await chrome.tabs.query({ url: p.origin + '/*' });
+  const usable = tabs.filter((t) => !t.discarded && t.status === 'complete')
+    .sort((a, b) => (b.active - a.active) || ((b.lastAccessed || 0) - (a.lastAccessed || 0)));
+  let r;
+  for (const t of usable) {
+    try { r = await execIn(t.id, func, fullArgs); break; }
+    catch (e) { if (!isTabUnusable(e)) throw e; }
+  }
+
+  // 2) Không tab nào dùng được: tải lại một tab Jira (hoặc mở tab mới) rồi thử lại một lần.
+  if (r === undefined) {
+    let tabId;
+    if (tabs.length) {
+      tabId = tabs[0].id;
+      await navigateAndWait(tabId, () => chrome.tabs.update(tabId, { url: raw }));
+    } else {
+      const tab = await chrome.tabs.create({ url: 'about:blank', active: false });
+      tabId = tab.id;
+      await navigateAndWait(tabId, () => chrome.tabs.update(tabId, { url: raw }));
+    }
+    try {
+      r = await execIn(tabId, func, fullArgs);
+    } catch (e) {
+      if (!isTabUnusable(e)) throw e;
+      // Cho người dùng thấy tab đang lỗi để tự kiểm tra
+      chrome.tabs.update(tabId, { active: true }).catch(() => {});
+      throw new Error('Không mở được trang Jira (tab đang báo lỗi tải trang). Kiểm tra mạng/VPN, đăng nhập Jira trong tab vừa mở rồi bấm lại.');
+    }
+  }
+
   if (!r) throw new Error('Không chạy được trong tab Jira.');
   if (r.error) throw new Error(r.error);
   return { r, p };
@@ -223,6 +272,9 @@ async function load() {
     const { r, p } = await runInJira(fetchInJira, [$('jql').value.trim() || buildJql()]);
     state.origin = p.base;
     state.issues = r.issues;
+    // giữ lựa chọn của các ticket vẫn còn trong danh sách mới
+    const keys = new Set(r.issues.map((i) => i.key));
+    state.sel = new Set([...state.sel].filter((k) => keys.has(k)));
     const { from, to } = getRange();
     setMsg(`${r.issues.length} task từ ${fmtDate(from)} đến ${fmtDate(to)}.`);
     render();
@@ -247,6 +299,7 @@ function visible() {
   const { by, dir } = state.sort;
   return state.issues
     .filter((i) => state.filter === 'all' || i.cat === state.filter)
+    .filter((i) => !state.statusF || i.status === state.statusF)
     .slice()
     .sort((a, b) => {
       if (by === 'date') return (new Date(a.date) - new Date(b.date)) * dir;
@@ -261,9 +314,16 @@ function render() {
   $('cAll').textContent = all.length;
   $('cDone').textContent = all.filter((i) => i.cat === 'done').length;
   $('cProg').textContent = all.filter((i) => i.cat === 'indeterminate').length;
+  // danh sách trạng thái thực tế để lọc
+  const counts = {};
+  all.forEach((i) => { counts[i.status] = (counts[i.status] || 0) + 1; });
+  if (state.statusF && !counts[state.statusF]) state.statusF = '';
+  $('statusF').innerHTML = '<option value="">Mọi trạng thái</option>' + Object.keys(counts).sort((a, b) => a.localeCompare(b, 'vi'))
+    .map((s) => `<option value="${esc(s)}"${s === state.statusF ? ' selected' : ''}>${esc(s)} (${counts[s]})</option>`).join('');
   const rows = visible();
   $('tbody').innerHTML = rows.map((i) => `
-    <tr>
+    <tr class="${state.sel.has(i.key) ? 'on' : ''}">
+      <td class="sel"><input type="checkbox" data-k="${esc(i.key)}"${state.sel.has(i.key) ? ' checked' : ''}></td>
       <td class="key"><a href="${esc(state.origin)}/browse/${esc(i.key)}" target="_blank">${esc(i.key)}</a></td>
       <td class="nowrap"><span class="type ${/bug/i.test(i.type) ? 'bug' : ''}">${esc(i.type)}</span></td>
       <td>${esc(i.summary)}</td>
@@ -273,6 +333,10 @@ function render() {
       <td class="nowrap">${fmtHours(i.spent)}</td>
     </tr>`).join('');
   $('copy').disabled = $('xlsx').disabled = rows.length === 0;
+  const selVisible = rows.filter((i) => state.sel.has(i.key)).length;
+  $('selAll').checked = rows.length > 0 && selVisible === rows.length;
+  $('selAll').indeterminate = selVisible > 0 && selVisible < rows.length;
+  if (typeof onSelectionChanged === 'function') onSelectionChanged();
 }
 
 function setMsg(t, err) { $('msg').textContent = t; $('msg').className = err ? 'err' : ''; }
@@ -382,8 +446,10 @@ async function submitPending() {
     });
     state.pending = [];
     $('lwGo').textContent = 'Xong';
-    setMsg(`Log xong: ${ok} thành công, ${dup} bỏ qua (đã có), ${err} lỗi.`, err > 0);
-    if (ok) load();
+    const result = `Log xong: ${ok} thành công, ${dup} bỏ qua (đã có), ${err} lỗi.`;
+    setMsg(result, err > 0);
+    // tải lại danh sách để cập nhật Worklogged, nhưng giữ thông báo kết quả log
+    if (ok) { await load(); setMsg(result + ' ' + $('msg').textContent, err > 0); }
     return true;
   } catch (e) {
     setMsg(e.message || String(e), true);

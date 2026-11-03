@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Jira shit",
-  "version": "1.0.0",
+  "version": "1.2.0",
   "description": "Dán link Jira, liệt kê task đã xong / đang làm theo khoảng ngày, xuất Excel và log work.",
   "action": {
     "default_title": "Jira shit",

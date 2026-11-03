@@ -45,8 +45,21 @@ Chọn ngày (mặc định hôm nay), dán các mã task cách nhau bởi dấu
 - Các task được log nối tiếp nhau trong ngày đã chọn, bắt đầu từ 08:00 (vd 3 task: 08:00, 10:45, 13:30).
 - Mã trùng chỉ tính một lần, mã sai định dạng bị bỏ qua. Bấm Log work lại cũng không bị log đôi.
 
+## Thao tác hàng loạt (comment / chuyển trạng thái / assign)
+1. Tải danh sách task, lọc bằng nút **Tất cả / Đã xong / Đang làm** hoặc ô **trạng thái** (vd `In Progress`, `Ready for Test`).
+2. Tick chọn ticket. Ô tick ở tiêu đề bảng chọn/bỏ chọn **tất cả ticket đang hiển thị**. Lựa chọn được giữ khi đổi bộ lọc.
+3. Khung **Đã chọn N ticket** hiện ra:
+   - **Comment**: cùng một nội dung cho mọi ticket đã chọn.
+   - **Chuyển trạng thái**: danh sách lấy từ các bước chuyển thực tế của Jira. Trạng thái nào chỉ một số ticket chuyển được thì ghi `(x/N ticket)`; ticket không có bước chuyển đó sẽ bị bỏ qua.
+   - **Assign cho**: *Reporter của từng ticket*, *Tôi*, *Người khác…* (gõ tên/email rồi chọn trong gợi ý), hoặc *Bỏ assign*.
+   - **Logwork 8h/ngày**: chọn một hoặc nhiều ngày (chọn ở ô ngày, mỗi lần chọn thêm một ngày; hoặc bấm **T2–T6 trong khoảng Từ–đến** để thêm mọi ngày làm việc trong khoảng ngày ở trên). Mỗi ngày log tổng 8h chia đều cho các ticket đã chọn, cùng quy tắc với **Logwork (8h)**: bội số 0,25h, phần dư cộng vào các ticket đầu, nối tiếp nhau từ 08:00. Bấm **Xem trước** → kiểm tra bảng → **Xác nhận log**. Worklog đã có sẽ tự bỏ qua.
+4. Mỗi thao tác hỏi xác nhận trước khi chạy, sau đó báo số ticket thành công và lỗi của từng ticket (vd không có quyền, workflow bắt buộc nhập thêm trường).
+
+Lưu ý: JQL mặc định chỉ lấy task ở nhóm trạng thái *In Progress* và *Done*. Muốn thao tác cả ticket *To Do*, sửa JQL trong mục **JQL (có thể sửa)** hoặc chọn phạm vi *Worklogged*.
+
 ## Kỹ thuật
 - Không cần API token: request chạy trong tab Jira, dùng phiên đăng nhập của bạn.
 - Đọc task: Jira Cloud `/rest/api/3/search/jql`, tự chuyển sang `/rest/api/2/search` cho Server/Data Center.
 - Log work: `POST /rest/api/2/issue/{key}/worklog`, chạy được trên cả Cloud và Server.
+- Comment / chuyển trạng thái / assign: `POST …/comment`, `GET|POST …/transitions`, `PUT …/assignee` (API v2, Cloud dùng `accountId`, Server dùng `name`).
 - Đọc/ghi Excel bằng SheetJS (`xlsx.mini.min.js`), đóng gói sẵn trong extension.
